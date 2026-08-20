@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "bid-history-web",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "python", "web.py"],
+      "port": 8931
+    }
+  ]
+}

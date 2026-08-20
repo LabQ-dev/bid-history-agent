@@ -1,0 +1,9 @@
+[project]
+name = "bid-history-agent"
+version = "0.1.0"
+description = "나라장터 입찰참가 이력·평가순위 검색 (회사명/사업자등록번호/대표자명, 기간 기준)"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31",
+    "openpyxl>=3.1",
+]
