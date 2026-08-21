@@ -8,6 +8,8 @@
 bid_history 패키지를 그대로 사용한다.
 """
 
+import base64
+import hmac
 import json
 import logging
 import threading
@@ -22,8 +24,16 @@ from bid_history.api import NaraClient, OPENG_LIST_OPS
 from bid_history.search import Query, DetailCache, search
 from bid_history import report
 
-PORT = 8931
 BASE = Path(__file__).parent
+
+# .env 설정 (기본: 이 컴퓨터에서만 접속)
+#   WEB_HOST=0.0.0.0      → 사무실 등 다른 컴퓨터에서도 접속 허용
+#   WEB_PORT=8931         → 접속 포트
+#   WEB_PASSWORD=비밀번호  → 접속 시 비밀번호 요구 (외부 접속 허용 시 필수 권장)
+load_env()
+HOST = os.environ.get("WEB_HOST", "127.0.0.1")
+PORT = int(os.environ.get("WEB_PORT", "8931"))
+PASSWORD = os.environ.get("WEB_PASSWORD", "")
 
 # ── 검색 작업 상태 (동시 1건) ────────────────────────
 job = {"state": "idle", "logs": [], "results": [], "error": ""}
@@ -81,6 +91,28 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):  # 콘솔 소음 제거
         pass
 
+    def _authorized(self) -> bool:
+        """WEB_PASSWORD 설정 시 브라우저 기본 로그인창(Basic Auth)으로 확인."""
+        if not PASSWORD:
+            return True
+        header = self.headers.get("Authorization", "")
+        if header.startswith("Basic "):
+            try:
+                decoded = base64.b64decode(header[6:]).decode()
+                _, _, pw = decoded.partition(":")
+                if hmac.compare_digest(pw, PASSWORD):
+                    return True
+            except Exception:
+                pass
+        body = "인증이 필요합니다.".encode()
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="bid-history", charset="UTF-8"')
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+        return False
+
     def _send(self, code: int, body: bytes, ctype: str):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
@@ -93,6 +125,8 @@ class Handler(BaseHTTPRequestHandler):
                    "application/json; charset=utf-8")
 
     def do_GET(self):
+        if not self._authorized():
+            return
         path = urlparse(self.path).path
         if path == "/":
             self._send(200, (BASE / "index.html").read_bytes(),
@@ -120,6 +154,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, b"not found", "text/plain")
 
     def do_POST(self):
+        if not self._authorized():
+            return
         if urlparse(self.path).path != "/api/search":
             self._send(404, b"not found", "text/plain")
             return
@@ -136,10 +172,13 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    load_env()
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
-    url = f"http://localhost:{PORT}"
-    print(f"나라장터 입찰참가 이력 검색 UI: {url}  (Ctrl+C로 종료)")
+    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    print(f"나라장터 입찰참가 이력 검색 UI: http://localhost:{PORT}  (Ctrl+C로 종료)")
+    if HOST != "127.0.0.1":
+        print(f"외부 접속 허용됨 — 다른 컴퓨터에서는 http://<이 컴퓨터 IP>:{PORT} 로 접속")
+        if not PASSWORD:
+            print("⚠️  WEB_PASSWORD가 설정되지 않았습니다. 같은 네트워크의 누구나 접속해"
+                  " API 한도를 소진할 수 있으니 .env에 WEB_PASSWORD 설정을 권장합니다.")
     server.serve_forever()
 
 
