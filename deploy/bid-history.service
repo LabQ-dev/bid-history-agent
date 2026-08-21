@@ -1,0 +1,26 @@
+# 나라장터 입찰참가 이력 검색 — systemd 서비스
+#
+# 설치 (README의 '리눅스 자동 실행' 참고):
+#   1) 아래 USERNAME 2곳과 경로를 실제 값으로 수정
+#   2) sudo cp deploy/bid-history.service /etc/systemd/system/
+#   3) sudo systemctl daemon-reload
+#   4) sudo systemctl enable --now bid-history
+#
+# 상태 확인: systemctl status bid-history
+# 로그 보기: journalctl -u bid-history -f
+
+[Unit]
+Description=나라장터 입찰참가 이력 검색 웹서버 (bid-history-agent)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=USERNAME
+WorkingDirectory=/home/USERNAME/bid-history-agent
+ExecStart=/home/USERNAME/.local/bin/uv run python web.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
