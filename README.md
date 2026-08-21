@@ -95,10 +95,33 @@ python main.py --bid-no R25BK01027145
 4. 팀원들은 `http://<그 컴퓨터 IP>:8931` 접속 → 브라우저 로그인창에
    아이디는 아무거나, 비밀번호만 입력
 
-- 컴퓨터 IP 확인: Mac `ipconfig getifaddr en0` / Windows `ipconfig` (IPv4 주소)
+- 컴퓨터 IP 확인: Linux `hostname -I` / Mac `ipconfig getifaddr en0` / Windows `ipconfig`
 - `WEB_PASSWORD`를 설정하지 않으면 같은 네트워크의 누구나 접속해 API 일일한도를
   소진할 수 있으므로 외부 접속 허용 시 반드시 설정하세요.
-- 재부팅 후 자동 실행이 필요하면 Mac은 launchd, Windows는 작업 스케줄러에 등록합니다.
+
+### 리눅스 자동 실행 (systemd)
+
+재부팅해도 자동으로 켜지고, 꺼지면 5초 후 자동 재시작됩니다.
+
+```bash
+# 1) uv 설치 (없다면) 및 프로젝트 준비
+curl -LsSf https://astral.sh/uv/install.sh | sh
+git clone https://github.com/LabQ-dev/bid-history-agent.git ~/bid-history-agent
+cd ~/bid-history-agent && uv sync
+# .env 생성: G2B_SERVICE_KEY, WEB_HOST=0.0.0.0, WEB_PASSWORD 입력
+
+# 2) 서비스 파일의 USERNAME(2곳)·경로를 실제 계정명으로 수정 후 등록
+sed "s/USERNAME/$(whoami)/g" deploy/bid-history.service | sudo tee /etc/systemd/system/bid-history.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now bid-history
+
+# 3) 확인
+systemctl status bid-history          # 상태
+journalctl -u bid-history -f          # 로그
+```
+
+- 방화벽(ufw) 사용 시 포트 개방: `sudo ufw allow 8931`
+- 코드 업데이트 반영: `cd ~/bid-history-agent && git pull && sudo systemctl restart bid-history`
 
 ## API 트래픽 한도 주의
 
