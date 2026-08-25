@@ -81,6 +81,34 @@ python main.py --bid-no R25BK01027145
 | `--max-calls` | 공고 상세조회 최대 호출수 (아래 트래픽 한도 참고) |
 | `--bid-no` | 공고번호 직접 조회 (기간 불필요) |
 
+## 개찰결과 일일 수집 (검색 즉시화)
+
+API가 업체 기준 검색을 지원하지 않아 넓은 기간 검색은 공고별 조회가 필요합니다.
+`collector.py`가 **매일 전날 개찰결과(참가업체·순위)를 미리 수집해 캐시에 쌓아두면**,
+수집된 기간의 검색은 API를 거의 쓰지 않고 즉시 끝납니다.
+
+```bash
+python collector.py                        # 어제 하루치 수집
+python collector.py --from 20260701 --to 20260731 --types 용역   # 과거 소급(백필)
+python collector.py --daemon               # 매일 06:00 자동 수집 (도커에서 사용)
+```
+
+- 하루 최대 호출수(기본 800회)에 도달하면 멈추고, 다음 실행 때 이어서 수집합니다.
+- 이미 수집된 공고는 건너뛰므로 반복 실행해도 안전합니다.
+
+## 도커로 실행 (검색 + 자동 수집)
+
+```bash
+cp .env.example .env    # G2B_SERVICE_KEY, WEB_PASSWORD 입력
+docker compose up -d --build
+```
+
+- `web` 컨테이너: 검색 화면 (http://localhost:8931)
+- `collector` 컨테이너: 매일 06시 어제치 개찰결과 자동 수집
+- 데이터(SQLite)는 `./data/cache.db`에 저장 — **서버 이전 시 레포 클론 후 이 폴더만
+  복사하면 마이그레이션 완료**
+- 로그 확인: `docker compose logs -f collector`
+
 ## 사무실 공용 컴퓨터에 올리기 (팀원 공동 사용)
 
 항상 켜져 있는 컴퓨터에서 실행해두면 같은 네트워크의 팀원들이 브라우저로 사용할 수 있습니다.

@@ -34,6 +34,7 @@ load_env()
 HOST = os.environ.get("WEB_HOST", "127.0.0.1")
 PORT = int(os.environ.get("WEB_PORT", "8931"))
 PASSWORD = os.environ.get("WEB_PASSWORD", "")
+DATA_DIR = Path(os.environ.get("G2B_DATA_DIR", BASE))  # 도커에서는 볼륨 경로
 
 # ── 검색 작업 상태 (동시 1건) ────────────────────────
 job = {"state": "idle", "logs": [], "results": [], "error": ""}
@@ -73,7 +74,7 @@ def run_search(params: dict):
             raise RuntimeError("조회 기간을 입력하세요.")
         # 일일한도(개발계정 1,000회) 보호: 기본 300회, 최대 500회로 제한
         max_calls = min(int(params.get("maxCalls") or 300), 500)
-        cache = DetailCache(BASE / "cache.db")
+        cache = DetailCache(DATA_DIR / "cache.db")
         results = search(client, q, cache, max_detail_calls=max_calls)
         with job_lock:
             job["results"] = results
@@ -139,7 +140,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/download":
             with job_lock:
                 results = list(job["results"])
-            out = BASE / "검색결과.xlsx"
+            out = DATA_DIR / "검색결과.xlsx"
             report.save_xlsx(results, out)
             body = out.read_bytes()
             self.send_response(200)
