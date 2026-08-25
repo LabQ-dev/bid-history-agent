@@ -205,8 +205,13 @@
 <script>
 let timer = null;
 
+// GitHub Pages 등 정적 호스팅에서는 검색 서버(web.py)가 없어 검색 불가
+const STATIC_PREVIEW = location.hostname.endsWith('github.io');
+
 function startSearch(e) {
   e.preventDefault();
+  if (STATIC_PREVIEW)
+    return showErr('이 페이지는 화면 미리보기용입니다. 실제 검색은 검색 서버가 설치된 사내 주소로 접속해서 이용해주세요.');
   const params = {
     company: v('company'), bizno: v('bizno'), ceo: v('ceo'),
     bgn: v('bgn').replaceAll('-', ''), end: v('end').replaceAll('-', ''),
@@ -231,7 +236,7 @@ function startSearch(e) {
   document.getElementById('logBox').textContent = '검색을 시작합니다...';
 
   fetch('/api/search', { method: 'POST', body: JSON.stringify(params) })
-    .then(r => r.json())
+    .then(r => r.json().catch(() => { throw new Error('검색 서버에 연결할 수 없습니다. 서버(web.py)가 실행 중인지 확인해주세요.'); }))
     .then(r => {
       if (!r.ok) throw new Error(r.error || '검색 시작에 실패했습니다.');
       timer = setInterval(poll, 1500);
