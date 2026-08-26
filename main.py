@@ -65,7 +65,9 @@ def main():
     if args.bid_no:
         rows = client.openg_participants(args.bid_no)
         q = Query(company=args.company, bizno=args.bizno, ceo=args.ceo)
-        results = [{**{"bidNtceNo": args.bid_no}, **r} for r in rows if q.matches(r)]
+        winner = next((r for r in rows if str(r.get("opengRank")) == "1"), None)
+        results = [{**{"bidNtceNo": args.bid_no}, **r, "_winner": winner}
+                   for r in rows if q.matches(r)]
         finish(results, args)
         return
 

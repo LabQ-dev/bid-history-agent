@@ -122,6 +122,9 @@
   tr.win td:first-child { font-weight: 700; color: #b26a00; }
   .badge { display: inline-block; background: #ffecb3; color: #b26a00; border-radius: 6px;
            padding: 0 6px; font-size: 11px; font-weight: 700; margin-left: 4px; }
+  td.winner { font-weight: 700; color: #137333; }
+  td.neg { color: #c5221f; }
+  td.pos { color: #1a56db; }
 </style>
 </head>
 <body>
@@ -265,15 +268,21 @@ function render(rows) {
   tbl.innerHTML = '';
   if (!rows.length) return;
   const header = rows[0], rankIdx = header.indexOf('평가순위'),
-        nameIdx = header.indexOf('공고명');
+        nameIdx = header.indexOf('공고명'),
+        winnerIdx = header.indexOf('1위업체'),
+        diffIdxs = [header.indexOf('금액차(1위대비)'), header.indexOf('점수차(1위대비)')];
   tbl.innerHTML = '<tr>' + header.map(h => `<th>${esc(h)}</th>`).join('') + '</tr>' +
     rows.slice(1).map(r => {
       const isWin = String(r[rankIdx]) === '1';
       return `<tr class="${isWin ? 'win' : ''}">` +
         r.map((c, i) => {
           let cell = esc(c);
+          let cls = i === nameIdx ? 'name' : '';
           if (i === rankIdx && isWin) cell += '<span class="badge">낙찰</span>';
-          return `<td class="${i === nameIdx ? 'name' : ''}">${cell}</td>`;
+          if (i === winnerIdx && !isWin && c) cls += ' winner';
+          if (diffIdxs.includes(i) && /^-\d/.test(String(c))) cls += ' neg';
+          if (diffIdxs.includes(i) && /^\+\d/.test(String(c))) cls += ' pos';
+          return `<td class="${cls.trim()}">${cell}</td>`;
         }).join('') + '</tr>';
     }).join('');
   if (n) document.getElementById('btnDown').style.display = 'inline-block';
