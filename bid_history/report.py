@@ -12,21 +12,57 @@ COLUMNS = [
     ("prtcptCnum",     "참가업체수"),
     ("opengRank",      "평가순위"),
     ("prcbdrNm",       "업체명"),
-    ("prcbdrBizno",    "사업자번호"),
-    ("prcbdrCeoNm",    "대표자"),
     ("bidprcAmt",      "투찰금액"),
     ("bidprcrt",       "투찰률(%)"),
-    ("techEvlVal",     "기술평가점수"),
-    ("bidPrceEvlVal",  "가격평가점수"),
-    ("totalEvlAmtVal", "종합평가점수"),
-    ("rmrk",           "비고"),
+    ("techEvlVal",     "기술점수"),
+    ("bidPrceEvlVal",  "가격점수"),
+    ("totalEvlAmtVal", "종합점수"),
+    # 1위(낙찰자) 비교 — _winner에서 계산
+    ("_winnerNm",      "1위업체"),
+    ("_winnerAmt",     "1위투찰금액"),
+    ("_winnerTotal",   "1위종합점수"),
+    ("_amtDiff",       "금액차(1위대비)"),
+    ("_scoreDiff",     "점수차(1위대비)"),
 ]
+
+
+def _num(v):
+    try:
+        return float(str(v).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def _fmt_amt(v):
+    n = _num(v)
+    return f"{n:,.0f}" if n is not None else ""
+
+
+def enrich(r: dict) -> dict:
+    """1위(낙찰자) 비교 필드를 계산해 붙인다."""
+    w = r.get("_winner") or {}
+    is_self_winner = str(r.get("opengRank")) == "1"
+    out = dict(r)
+    out["_winnerNm"] = w.get("prcbdrNm", "")
+    out["_winnerAmt"] = _fmt_amt(w.get("bidprcAmt"))
+    out["_winnerTotal"] = w.get("totalEvlAmtVal", "")
+    out["bidprcAmt"] = _fmt_amt(r.get("bidprcAmt"))
+    if is_self_winner:
+        out["_amtDiff"] = "-"
+        out["_scoreDiff"] = "-"
+        return out
+    my_amt, w_amt = _num(r.get("bidprcAmt")), _num(w.get("bidprcAmt"))
+    my_sc, w_sc = _num(r.get("totalEvlAmtVal")), _num(w.get("totalEvlAmtVal"))
+    out["_amtDiff"] = f"{my_amt - w_amt:+,.0f}" if (my_amt is not None and w_amt is not None) else ""
+    out["_scoreDiff"] = f"{my_sc - w_sc:+.4g}" if (my_sc is not None and w_sc is not None) else ""
+    return out
 
 
 def to_rows(results: list[dict]) -> list[list]:
     rows = [[label for _, label in COLUMNS]]
     for r in results:
-        rows.append([r.get(key, "") for key, _ in COLUMNS])
+        e = enrich(r)
+        rows.append([e.get(key, "") for key, _ in COLUMNS])
     return rows
 
 
@@ -34,15 +70,18 @@ def print_table(results: list[dict], limit: int = 50):
     if not results:
         print("조건에 맞는 입찰참가 이력이 없습니다.")
         return
-    for r in results[:limit]:
+    for raw in results[:limit]:
+        r = enrich(raw)
         win = " ★낙찰(1위)" if str(r.get("opengRank")) == "1" else ""
         print(f"[{r.get('opengDt','')}] {r.get('_bizType','')} {r.get('bidNtceNo','')} "
               f"{str(r.get('bidNtceNm',''))[:40]}")
         print(f"    순위 {r.get('opengRank','-')}/{r.get('prtcptCnum','-')}{win} | "
-              f"{r.get('prcbdrNm','')} ({r.get('prcbdrBizno','')}, 대표 {r.get('prcbdrCeoNm','')}) | "
-              f"투찰 {r.get('bidprcAmt','')}원 ({r.get('bidprcrt','')}%) | "
+              f"{r.get('prcbdrNm','')} | 투찰 {r.get('bidprcAmt','')}원 ({r.get('bidprcrt','')}%) | "
               f"기술 {r.get('techEvlVal','') or '-'} / 가격 {r.get('bidPrceEvlVal','') or '-'} "
               f"/ 종합 {r.get('totalEvlAmtVal','') or '-'}")
+        if win == "" and r.get("_winnerNm"):
+            print(f"    1위: {r['_winnerNm']} | 투찰 {r['_winnerAmt']}원 | 종합 {r['_winnerTotal'] or '-'} "
+                  f"| 금액차 {r['_amtDiff'] or '-'} / 점수차 {r['_scoreDiff'] or '-'}")
     if len(results) > limit:
         print(f"... 외 {len(results) - limit}건 (파일 출력 참고)")
 

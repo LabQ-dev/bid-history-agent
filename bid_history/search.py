@@ -138,9 +138,10 @@ def search(client: NaraClient, q: Query, cache: DetailCache,
             detail_calls += 1
             cache.put(key, rows)
 
+        winner = next((r for r in rows if str(r.get("opengRank")) == "1"), None)
         for row in rows:
             if q.matches(row):
-                results.append({**bid, **row})
+                results.append({**bid, **row, "_winner": winner})
 
         if idx % progress_every == 0:
             logger.info("진행 %d/%d (API 상세호출 %d, 매칭 %d)",
