@@ -132,6 +132,29 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             self._send(200, (BASE / "index.html").read_bytes(),
                        "text/html; charset=utf-8")
+        elif path == "/api/bid":
+            # 공고번호로 개찰결과(참가업체 전체 순위표) 조회 — DB(캐시)에서만 읽음
+            from urllib.parse import parse_qs
+            no = parse_qs(urlparse(self.path).query).get("no", [""])[0].strip()
+            rows, found = [], False
+            if no:
+                import sqlite3
+                conn = sqlite3.connect(DATA_DIR / "cache.db")
+                hit = conn.execute(
+                    "SELECT data FROM participants WHERE key LIKE ? ORDER BY key LIMIT 1",
+                    (no + "|%",)).fetchone()
+                conn.close()
+                if hit:
+                    found = True
+                    rows = json.loads(hit[0])
+
+                    def rank(r):
+                        try:
+                            return int(r.get("opengRank"))
+                        except (TypeError, ValueError):
+                            return 9999
+                    rows.sort(key=rank)
+            self._json({"found": found, "no": no, "rows": rows})
         elif path == "/api/status":
             with job_lock:
                 rows = report.to_rows(job["results"]) if job["state"] == "done" else []
