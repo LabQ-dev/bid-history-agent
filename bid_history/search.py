@@ -110,18 +110,23 @@ def search(client: NaraClient, q: Query, cache: DetailCache,
     bids = list(sweep_bids(client, q))
     logger.info("개찰완료 공고 %d건 → 공고별 참가업체 조회 시작", len(bids))
 
-    results, detail_calls = [], 0
+    results, detail_calls, uncached = [], 0, 0
+    no_more_calls = False  # 한도·트래픽 초과 후에도 캐시된 공고는 끝까지 검색
     for idx, bid in enumerate(bids, 1):
         ntce_no = str(bid.get("bidNtceNo", ""))
         key = "|".join(str(bid.get(k, "")) for k in
                        ("bidNtceNo", "bidNtceOrd", "bidClsfcNo", "rbidNo"))
         rows = cache.get(key)
         if rows is None:
+            if no_more_calls:
+                uncached += 1
+                continue
             if max_detail_calls is not None and detail_calls >= max_detail_calls:
-                logger.warning("상세조회 호출 한도(%d) 도달 — 이후 %d건 미조회. "
-                               "같은 명령을 다시 실행하면 캐시 이후부터 이어서 조회합니다.",
-                               max_detail_calls, len(bids) - idx + 1)
-                break
+                logger.warning("상세조회 호출 한도(%d) 도달 — 미캐시 공고는 건너뛰고 "
+                               "캐시된 공고만 계속 검색합니다.", max_detail_calls)
+                no_more_calls = True
+                uncached += 1
+                continue
             try:
                 rows = client.openg_participants(
                     ntce_no,
@@ -130,9 +135,12 @@ def search(client: NaraClient, q: Query, cache: DetailCache,
                     str(bid.get("rbidNo", "")))
             except NaraApiError as e:
                 if "트래픽 초과" in str(e):
-                    logger.error("일일 트래픽 초과로 중단 (%d/%d건 처리). "
-                                 "내일 재실행 시 캐시 이후부터 이어집니다.", idx - 1, len(bids))
-                    break
+                    logger.error("일일 트래픽 초과 — 미캐시 공고는 건너뛰고 "
+                                 "캐시된 공고만 계속 검색합니다. (%d/%d건 처리)",
+                                 idx - 1, len(bids))
+                    no_more_calls = True
+                    uncached += 1
+                    continue
                 logger.warning("공고 %s 상세조회 실패: %s", ntce_no, e)
                 rows = []
             detail_calls += 1
@@ -146,6 +154,10 @@ def search(client: NaraClient, q: Query, cache: DetailCache,
         if idx % progress_every == 0:
             logger.info("진행 %d/%d (API 상세호출 %d, 매칭 %d)",
                         idx, len(bids), detail_calls, len(results))
+
+    if uncached:
+        logger.warning("미조회(캐시 없음) 공고 %d건 — 수집기(collector.py)로 적재 후 "
+                       "다시 검색하면 결과에 포함됩니다.", uncached)
 
     # 개찰일시 → 순위 순 정렬
     results.sort(key=lambda r: (str(r.get("opengDt", "")),
