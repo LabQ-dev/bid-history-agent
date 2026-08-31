@@ -62,13 +62,33 @@ class Query:
 
 
 class DetailCache:
-    """공고별 참가업체 조회 결과 캐시 (SQLite)."""
+    """개찰결과 저장소 (SQLite).
+
+    - bids: 공고 목록 API(①)의 공고 메타데이터 (공고명·개찰일시·수요기관 등)
+    - participants: 개찰완료 API(②)의 공고별 참가업체 명단 (JSON)
+    key = 공고번호|차수|분류번호|재입찰번호
+    """
 
     def __init__(self, path: Path):
         self.conn = sqlite3.connect(path)
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS participants ("
             " key TEXT PRIMARY KEY, data TEXT NOT NULL)")
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS bids ("
+            " key TEXT PRIMARY KEY,"
+            " bidNtceNo TEXT NOT NULL,"
+            " bizType TEXT,"
+            " bidNtceNm TEXT,"
+            " opengDt TEXT,"
+            " dminsttNm TEXT,"
+            " ntceInsttNm TEXT,"
+            " prtcptCnum TEXT,"
+            " progrsDivCdNm TEXT)")
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bids_opengDt ON bids(opengDt)")
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bids_no ON bids(bidNtceNo)")
 
     def get(self, key: str) -> Optional[list]:
         row = self.conn.execute(
@@ -81,9 +101,31 @@ class DetailCache:
             (key, json.dumps(data, ensure_ascii=False)))
         self.conn.commit()
 
+    def put_bid(self, key: str, bid: dict, commit: bool = True):
+        self.conn.execute(
+            "INSERT OR REPLACE INTO bids VALUES (?,?,?,?,?,?,?,?,?)",
+            (key, str(bid.get("bidNtceNo", "")), bid.get("_bizType", ""),
+             bid.get("bidNtceNm", ""), bid.get("opengDt", ""),
+             bid.get("dminsttNm", ""), bid.get("ntceInsttNm", ""),
+             str(bid.get("prtcptCnum", "")), bid.get("progrsDivCdNm", "")))
+        if commit:
+            self.conn.commit()
 
-def sweep_bids(client: NaraClient, q: Query) -> Iterable[dict]:
-    """기간 내 개찰완료 공고 목록(업무구분 포함)을 생성."""
+    def coverage(self) -> list:
+        """일자별 (공고수, 참가명단 보유수) — 수집 범위 확인용."""
+        return self.conn.execute(
+            "SELECT substr(b.opengDt,1,10) d, COUNT(*),"
+            "       SUM(CASE WHEN p.key IS NOT NULL THEN 1 ELSE 0 END)"
+            " FROM bids b LEFT JOIN participants p ON p.key = b.key"
+            " GROUP BY d ORDER BY d").fetchall()
+
+
+def sweep_bids(client: NaraClient, q: Query,
+               cache: Optional[DetailCache] = None) -> Iterable[dict]:
+    """기간 내 개찰완료 공고 목록(업무구분 포함)을 생성.
+
+    cache를 주면 공고 메타데이터를 bids 테이블에도 적재한다.
+    """
     bgn, end = q.bgn + "0000", q.end + "2359"
     kw = q.keyword.replace(" ", "").lower()
     seen = set()
@@ -100,14 +142,20 @@ def sweep_bids(client: NaraClient, q: Query) -> Iterable[dict]:
                 continue
             seen.add(key)
             item["_bizType"] = biz_type
+            if cache is not None:
+                item_key = "|".join(str(item.get(k, "")) for k in
+                                    ("bidNtceNo", "bidNtceOrd", "bidClsfcNo", "rbidNo"))
+                cache.put_bid(item_key, item, commit=False)
             yield item
+        if cache is not None:
+            cache.conn.commit()
 
 
 def search(client: NaraClient, q: Query, cache: DetailCache,
            max_detail_calls: Optional[int] = None,
            progress_every: int = 200) -> list[dict]:
     """검색 실행. 결과: 매칭된 참가 레코드 목록(공고정보 + 업체·순위·점수)."""
-    bids = list(sweep_bids(client, q))
+    bids = list(sweep_bids(client, q, cache))
     logger.info("개찰완료 공고 %d건 → 공고별 참가업체 조회 시작", len(bids))
 
     results, detail_calls, uncached = [], 0, 0

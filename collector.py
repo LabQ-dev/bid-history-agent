@@ -35,7 +35,7 @@ def collect(client: NaraClient, cache: DetailCache, bgn: str, end: str,
             biz_types: list, max_calls: int) -> dict:
     """기간 내 개찰완료 공고의 참가업체 데이터를 캐시에 적재."""
     q = Query(bgn=bgn, end=end, biz_types=biz_types)
-    bids = list(sweep_bids(client, q))
+    bids = list(sweep_bids(client, q, cache))   # 공고 메타데이터도 bids 테이블에 적재
     stats = {"bids": len(bids), "fetched": 0, "skipped": 0, "calls": 0}
     logger.info("개찰완료 공고 %d건 (%s~%s) — 수집 시작", len(bids), bgn, end)
 
@@ -110,6 +110,8 @@ def main():
                    help="상세조회 최대 호출수 (기본 8000, 일일한도 보호)")
     p.add_argument("--daemon", action="store_true",
                    help="매일 지정 시각에 어제치 자동 수집 (도커용)")
+    p.add_argument("--coverage", action="store_true",
+                   help="수집 범위 요약(개찰일별 공고수/명단 보유수) 출력 후 종료")
     p.add_argument("--hour", type=int,
                    default=int(os.environ.get("COLLECT_HOUR", "6")),
                    help="--daemon 수집 시각 (기본 06시)")
@@ -119,6 +121,16 @@ def main():
                         format="%(asctime)s %(levelname)s %(message)s",
                         datefmt="%m-%d %H:%M:%S")
     load_env()
+
+    if args.coverage:
+        cache = DetailCache(DATA_DIR / "cache.db")
+        rows = cache.coverage()
+        print(f"{'개찰일':12} {'공고수':>6} {'명단보유':>6}")
+        for d, n, have in rows:
+            mark = "" if n == have else "  ← 미완"
+            print(f"{d or '(없음)':12} {n:>6} {have:>6}{mark}")
+        print(f"합계: 공고 {sum(r[1] for r in rows)}건 / 명단 보유 {sum(r[2] for r in rows)}건")
+        return
 
     if not args.daemon:
         run_once(args)
