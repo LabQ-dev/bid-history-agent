@@ -106,8 +106,8 @@ def main():
     p.add_argument("--types", nargs="*", default=list(OPENG_LIST_OPS),
                    choices=list(OPENG_LIST_OPS), help="업무구분 (기본: 전체)")
     p.add_argument("--max-calls", type=int,
-                   default=int(os.environ.get("COLLECT_MAX_CALLS", "800")),
-                   help="상세조회 최대 호출수 (기본 800, 일일한도 보호)")
+                   default=int(os.environ.get("COLLECT_MAX_CALLS", "8000")),
+                   help="상세조회 최대 호출수 (기본 8000, 일일한도 보호)")
     p.add_argument("--daemon", action="store_true",
                    help="매일 지정 시각에 어제치 자동 수집 (도커용)")
     p.add_argument("--hour", type=int,
