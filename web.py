@@ -39,6 +39,7 @@ DATA_DIR = Path(os.environ.get("G2B_DATA_DIR", BASE))  # 도커에서는 볼륨 
 # ── 검색 작업 상태 (동시 1건) ────────────────────────
 job = {"state": "idle", "logs": [], "results": [], "error": ""}
 job_lock = threading.Lock()
+stop_event = threading.Event()
 
 
 class JobLogHandler(logging.Handler):
@@ -75,7 +76,8 @@ def run_search(params: dict):
         # 일일한도 보호: 기본 1,000회, 최대 5,000회 (운영계정 기준)
         max_calls = min(int(params.get("maxCalls") or 1000), 5000)
         cache = DetailCache(DATA_DIR / "cache.db")
-        results = search(client, q, cache, max_detail_calls=max_calls)
+        results = search(client, q, cache, max_detail_calls=max_calls,
+                         should_stop=stop_event.is_set)
         with job_lock:
             job["results"] = results
             job["state"] = "done"
@@ -172,7 +174,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self._authorized():
             return
-        if urlparse(self.path).path != "/api/search":
+        path = urlparse(self.path).path
+        if path == "/api/stop":
+            stop_event.set()
+            self._json({"ok": True})
+            return
+        if path != "/api/search":
             self._send(404, b"not found", "text/plain")
             return
         with job_lock:
@@ -180,6 +187,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": False, "error": "이미 검색이 진행 중입니다."}, 409)
                 return
             job.update({"state": "running", "logs": [], "results": [], "error": ""})
+        stop_event.clear()
         length = int(self.headers.get("Content-Length", 0))
         params = json.loads(self.rfile.read(length) or b"{}")
         threading.Thread(target=run_search, args=(params,), daemon=True).start()

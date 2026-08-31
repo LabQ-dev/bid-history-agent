@@ -217,7 +217,11 @@
 </div>
 
 <div id="progressCard">
-  <div class="title">진행 상황</div>
+  <div class="title">진행 상황
+    <button id="btnStop" onclick="stopSearch()" style="float:right;border:0;border-radius:6px;
+      background:#c5221f;color:#fff;font-size:12px;font-weight:700;padding:5px 12px;
+      cursor:pointer;display:none">검색 중지</button>
+  </div>
   <div id="logBox"></div>
 </div>
 
@@ -270,6 +274,8 @@ function startSearch(e) {
   document.getElementById('resultCard').style.display = 'none';
   document.getElementById('progressCard').style.display = 'block';
   document.getElementById('logBox').textContent = '검색을 시작합니다...';
+  const bs = document.getElementById('btnStop');
+  bs.style.display = 'inline-block'; bs.disabled = false;
 
   fetch('/api/search', { method: 'POST', body: JSON.stringify(params) })
     .then(r => r.json().catch(() => { throw new Error('검색 서버에 연결할 수 없습니다. 서버(web.py)가 실행 중인지 확인해주세요.'); }))
@@ -287,6 +293,7 @@ function poll() {
     box.scrollTop = box.scrollHeight;
     if (s.state === 'done') { clearInterval(timer); render(s.rows); reset(); }
     if (s.state === 'error') { clearInterval(timer); showErr(s.error); reset(); }
+    if (s.state !== 'running') document.getElementById('btnStop').style.display = 'none';
   });
 }
 
@@ -333,6 +340,7 @@ if (!STATIC_PREVIEW) {
       document.getElementById('btnSearch').textContent = '검색 중...';
       document.getElementById('progressCard').style.display = 'block';
       document.getElementById('logBox').textContent = s.logs.join('\n') || '진행 중...';
+      document.getElementById('btnStop').style.display = 'inline-block';
       timer = setInterval(poll, 1500);
     } else if (s.state === 'done' && s.rows.length > 1) {
       document.getElementById('progressCard').style.display = 'block';
@@ -374,6 +382,12 @@ function openBid(no, linkEl) {
   }).catch(() => showErr('개찰 순위표를 불러오지 못했습니다.'));
 }
 function closeModal() { document.getElementById('modalBack').style.display = 'none'; }
+
+// 검색 중지 — API 수집을 멈추고 그때까지 DB에 있는 범위로 결과 표시
+function stopSearch() {
+  document.getElementById('btnStop').disabled = true;
+  fetch('/api/stop', { method: 'POST' });
+}
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 const v = id => document.getElementById(id).value.trim();
