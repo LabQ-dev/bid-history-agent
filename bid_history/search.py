@@ -100,7 +100,10 @@ class DetailCache:
     """개찰결과 정규화 저장소 (SQLite). key = 공고번호|차수|분류번호|재입찰번호"""
 
     def __init__(self, path: Path):
-        self.conn = sqlite3.connect(path)
+        # timeout: 잠금 시 30초 대기 / WAL: 조회(DB Browser 등)와 쓰기 동시 허용
+        self.conn = sqlite3.connect(path, timeout=30)
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA busy_timeout=30000")
         c = self.conn
         c.execute("CREATE TABLE IF NOT EXISTS bids ("
                   " key TEXT PRIMARY KEY, bidNtceNo TEXT NOT NULL, bizType TEXT,"
