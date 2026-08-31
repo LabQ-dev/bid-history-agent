@@ -307,28 +307,46 @@ def sweep_bids(client: NaraClient, q: Query,
 
 def search(client: NaraClient, q: Query, cache: DetailCache,
            max_detail_calls: Optional[int] = None,
-           progress_every: int = 200) -> list[dict]:
+           progress_every: int = 200,
+           should_stop=None) -> list[dict]:
     """검색 실행: 부족한 부분만 API로 채우고, 매칭은 DB에서 SQL로.
 
+    should_stop: 호출 시 True를 반환하면 API 수집을 멈추고
+    그때까지 DB에 있는 범위로 결과를 반환한다.
     결과: 매칭된 참가 레코드 목록 (공고정보 + 업체·순위·점수 + _winner)
     """
+    stopped = False
+
+    def _stop() -> bool:
+        nonlocal stopped
+        if should_stop and should_stop():
+            stopped = True
+        return stopped
+
     # 1) 스윕 안 된 (업무구분, 일자) 구간만 목록 API로 채움
     missing = cache.missing_days(q)
     if missing:
         for biz, days in missing.items():
             for c_bgn, c_end in _chunks(days):
+                if _stop():
+                    break
                 sub = Query(bgn=c_bgn, end=c_end, biz_types=[biz])
                 for _ in sweep_bids(client, sub, cache):
                     pass
+            if stopped:
+                break
     else:
         logger.info("공고 목록: 요청 기간 전체가 이미 DB에 있음 (API 스윕 생략)")
 
     # 2) 명단 미수집 공고만 개찰완료 API로 수집
-    todo = cache.unfetched_bids(q)
+    todo = [] if stopped else cache.unfetched_bids(q)
     detail_calls, uncached = 0, 0
     if todo:
         logger.info("참가업체 명단 미수집 공고 %d건 — 수집 시작", len(todo))
     for idx, bid in enumerate(todo, 1):
+        if _stop():
+            uncached = len(todo) - idx + 1
+            break
         if max_detail_calls is not None and detail_calls >= max_detail_calls:
             uncached = len(todo) - idx + 1
             logger.warning("상세조회 호출 한도(%d) 도달 — %d건 미수집. "
@@ -349,6 +367,9 @@ def search(client: NaraClient, q: Query, cache: DetailCache,
         cache.put(bid["key"], rows)
         if idx % progress_every == 0:
             logger.info("진행 %d/%d (API 상세호출 %d)", idx, len(todo), detail_calls)
+    if stopped:
+        logger.warning("사용자 요청으로 수집을 중지했습니다 — 지금까지 DB에 있는 "
+                       "범위에서 결과를 표시합니다.")
     if uncached:
         logger.warning("미수집 공고 %d건은 이번 결과에서 빠질 수 있습니다 — "
                        "재검색 또는 수집기 실행 시 채워집니다.", uncached)
