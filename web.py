@@ -72,8 +72,8 @@ def run_search(params: dict):
             raise RuntimeError("회사명 / 사업자등록번호 / 대표자명 중 하나 이상을 입력하세요.")
         if not (q.bgn and q.end):
             raise RuntimeError("조회 기간을 입력하세요.")
-        # 일일한도(개발계정 1,000회) 보호: 기본 300회, 최대 500회로 제한
-        max_calls = min(int(params.get("maxCalls") or 300), 500)
+        # 일일한도 보호: 기본 1,000회, 최대 5,000회 (운영계정 기준)
+        max_calls = min(int(params.get("maxCalls") or 1000), 5000)
         cache = DetailCache(DATA_DIR / "cache.db")
         results = search(client, q, cache, max_detail_calls=max_calls)
         with job_lock:

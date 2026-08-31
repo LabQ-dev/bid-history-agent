@@ -206,8 +206,8 @@
 
       <div class="field">
         <label class="title">상세조회 최대 호출수</label>
-        <div class="hint">API 일일한도 보호용 — 최대 500회, 기본 300회.</div>
-        <input type="number" id="maxCalls" value="300" min="1" max="500">
+        <div class="hint">API 일일한도 보호용 — 최대 5,000회, 기본 1,000회 (운영계정 기준).</div>
+        <input type="number" id="maxCalls" value="1000" min="1" max="5000">
       </div>
     </div>
 
@@ -261,8 +261,8 @@ function startSearch(e) {
   if (!params.types.length)
     return showErr('업무구분을 하나 이상 선택해주세요.');
   const mc = parseInt(params.maxCalls, 10);
-  if (!mc || mc < 1 || mc > 500)
-    return showErr('상세조회 최대 호출수는 1~500 사이로 입력해주세요.');
+  if (!mc || mc < 1 || mc > 5000)
+    return showErr('상세조회 최대 호출수는 1~5,000 사이로 입력해주세요.');
   showErr('');
   document.getElementById('btnSearch').disabled = true;
   document.getElementById('btnSearch').textContent = '검색 중...';
