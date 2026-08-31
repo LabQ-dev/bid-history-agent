@@ -157,6 +157,13 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/download":
             with job_lock:
                 results = list(job["results"])
+            if not results:
+                # 서버 재시작 등으로 결과가 없는 상태 — 빈 파일 대신 안내
+                body = ("<meta charset='utf-8'><p style='font-family:sans-serif'>"
+                        "다운로드할 검색 결과가 없습니다. 검색을 다시 실행한 뒤 "
+                        "엑셀 다운로드를 눌러주세요.</p>").encode()
+                self._send(200, body, "text/html; charset=utf-8")
+                return
             out = DATA_DIR / "검색결과.xlsx"
             report.save_xlsx(results, out)
             body = out.read_bytes()
