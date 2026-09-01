@@ -39,7 +39,7 @@
   }
   .grid3 {
     display: grid;
-    grid-template-columns: auto 1.3fr 1fr 0.8fr;
+    grid-template-columns: 1.3fr 1fr 0.8fr auto;
     column-gap: 20px;
   }
   @media (max-width: 700px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
@@ -175,10 +175,6 @@
 
   <form id="searchForm" onsubmit="startSearch(event)">
     <div class="grid3">
-      <button type="button" id="btnPicker" onclick="openPicker()"
-        style="align-self:stretch;margin-bottom:14px;padding:10px 20px;border:1px solid #1a73e8;
-        border-radius:8px;background:#fff;color:#1a73e8;font-size:14px;font-weight:700;
-        cursor:pointer">업체 검색</button>
       <div class="field">
         <label class="title">회사명 <span class="req">*</span></label>
         <div class="hint">[업체 검색]에서 회사를 선택하면 채워집니다.</div>
@@ -194,6 +190,10 @@
         <div class="hint">&nbsp;</div>
         <input type="text" id="ceo" placeholder="자동 입력" readonly onclick="openPicker()">
       </div>
+      <button type="button" id="btnPicker" onclick="openPicker()"
+        style="align-self:stretch;margin-bottom:14px;padding:10px 20px;border:1px solid #1a73e8;
+        border-radius:8px;background:#fff;color:#1a73e8;font-size:14px;font-weight:700;
+        cursor:pointer">업체 검색</button>
     </div>
 
     <div class="field">
