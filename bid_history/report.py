@@ -7,6 +7,7 @@ COLUMNS = [
     ("opengDt",        "개찰일시"),
     ("_bizType",       "업무구분"),
     ("bidNtceNo",      "공고번호"),
+    ("_clsfc",         "분류"),
     ("bidNtceNm",      "공고명"),
     ("dminsttNm",      "수요기관"),
     ("prtcptCnum",     "참가업체수"),
@@ -43,6 +44,10 @@ def enrich(r: dict) -> dict:
     w = r.get("_winner") or {}
     is_self_winner = str(r.get("opengRank")) == "1"
     out = dict(r)
+    # 단가계약 등 한 공고가 품목별로 나뉘어 개찰되는 경우 분류번호 표시
+    parts = str(r.get("key", "")).split("|")
+    clsfc = parts[2] if len(parts) > 2 else ""
+    out["_clsfc"] = clsfc if clsfc not in ("", "0", "1") else ""
     out["_winnerNm"] = w.get("prcbdrNm", "")
     out["_winnerAmt"] = _fmt_amt(w.get("bidprcAmt"))
     out["_winnerTotal"] = w.get("totalEvlAmtVal", "")
