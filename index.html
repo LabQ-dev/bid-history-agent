@@ -44,6 +44,11 @@
   }
   @media (max-width: 700px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
   input[readonly] { background: #f8f9fa; cursor: pointer; }
+  .qbtn {
+    padding: 8px 16px; border: 1px solid #ccd3dd; border-radius: 8px;
+    background: #fff; color: #445; font-size: 13px; cursor: pointer;
+  }
+  .qbtn:hover { border-color: #1a73e8; color: #1a73e8; }
   .field { margin-bottom: 14px; }
   label.title { display: block; font-weight: 700; font-size: 13px; margin-bottom: 4px; }
   label.title .req { color: #e53935; }
@@ -192,35 +197,32 @@
       </div>
     </div>
 
-    <div class="grid2">
-      <div class="field">
-        <label class="title">조회 기간 <span class="req">*</span></label>
-        <div class="hint">개찰일 기준입니다. 기간이 길수록 조회 시간이 오래 걸려요.</div>
-        <div class="row2">
-          <div><input type="date" id="bgn" required></div>
-          <div><input type="date" id="end" required></div>
-        </div>
+    <div class="field">
+      <label class="title">조회 기간 <span class="req">*</span></label>
+      <div class="hint">개찰일 기준입니다. 기간이 길수록 조회 시간이 오래 걸려요.</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="date" id="bgn" required style="width:180px">
+        <span style="color:#888">~</span>
+        <input type="date" id="end" required style="width:180px">
+        <button type="button" class="qbtn" onclick="setPeriod(1)">1개월</button>
+        <button type="button" class="qbtn" onclick="setPeriod(3)">3개월</button>
+        <button type="button" class="qbtn" onclick="setPeriod(6)">6개월</button>
       </div>
+    </div>
 
-      <div class="field">
-        <label class="title">공고명 키워드</label>
-        <div class="hint">입력하면 해당 키워드가 포함된 공고만 조회해 시간이 크게 단축됩니다.</div>
-        <input type="text" id="keyword" placeholder="유지보수, 컨설팅, 청소 ...">
-      </div>
-      <div class="field">
-        <label class="title">업무구분 <span class="req">*</span></label>
-        <div class="checks" style="padding-top:8px">
-          <label><input type="checkbox" class="t" value="물품" checked> 물품</label>
-          <label><input type="checkbox" class="t" value="공사" checked> 공사</label>
-          <label><input type="checkbox" class="t" value="용역" checked> 용역</label>
-          <label><input type="checkbox" class="t" value="외자" checked> 외자</label>
-        </div>
-      </div>
+    <div class="field">
+      <label class="title">공고명 키워드</label>
+      <div class="hint">입력하면 해당 키워드가 포함된 공고만 조회해 시간이 크게 단축됩니다.</div>
+      <input type="text" id="keyword" placeholder="유지보수, 컨설팅, 청소 ...">
+    </div>
 
-      <div class="field">
-        <label class="title">상세조회 최대 호출수</label>
-        <div class="hint">API 일일한도 보호용 — 최대 5,000회, 기본 1,000회 (운영계정 기준).</div>
-        <input type="number" id="maxCalls" value="1000" min="1" max="5000">
+    <div class="field">
+      <label class="title">업무구분 <span class="req">*</span></label>
+      <div class="checks" style="padding-top:4px">
+        <label><input type="checkbox" class="t" value="물품" checked> 물품</label>
+        <label><input type="checkbox" class="t" value="공사" checked> 공사</label>
+        <label><input type="checkbox" class="t" value="용역" checked> 용역</label>
+        <label><input type="checkbox" class="t" value="외자" checked> 외자</label>
       </div>
     </div>
 
@@ -294,7 +296,7 @@ function startSearch(e) {
   const params = {
     company: v('company'), bizno: v('bizno'), ceo: v('ceo'),
     bgn: v('bgn').replaceAll('-', ''), end: v('end').replaceAll('-', ''),
-    keyword: v('keyword'), maxCalls: v('maxCalls'),
+    keyword: v('keyword'),
     types: [...document.querySelectorAll('.t:checked')].map(c => c.value),
   };
   if (!(params.company || params.bizno))
@@ -303,9 +305,6 @@ function startSearch(e) {
     return showErr('조회 기간을 입력해주세요.');
   if (!params.types.length)
     return showErr('업무구분을 하나 이상 선택해주세요.');
-  const mc = parseInt(params.maxCalls, 10);
-  if (!mc || mc < 1 || mc > 5000)
-    return showErr('상세조회 최대 호출수는 1~5,000 사이로 입력해주세요.');
   showErr('');
   document.getElementById('btnSearch').disabled = true;
   document.getElementById('btnSearch').textContent = '검색 중...';
@@ -476,6 +475,16 @@ function stopSearch() {
   fetch('/api/stop', { method: 'POST' });
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// 조회 기간 빠른 설정: 오늘 기준 N개월 전 ~ 오늘
+function setPeriod(months) {
+  const end = new Date();
+  const bgn = new Date();
+  bgn.setMonth(bgn.getMonth() - months);
+  const fmt = d => d.toISOString().slice(0, 10);
+  document.getElementById('bgn').value = fmt(bgn);
+  document.getElementById('end').value = fmt(end);
+}
 
 const v = id => document.getElementById(id).value.trim();
 const esc = s => String(s ?? '').replace(/[&<>"]/g,
