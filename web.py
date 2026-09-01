@@ -153,20 +153,26 @@ class Handler(BaseHTTPRequestHandler):
             # 업체 검색 팝업: 회사명/대표자/사업자번호 중 아무거나로 DB에서 기업 찾기
             from urllib.parse import parse_qs
             from bid_history.search import norm_name, norm_bizno
-            term = parse_qs(urlparse(self.path).query).get("q", [""])[0].strip()
+            qs = parse_qs(urlparse(self.path).query)
+            name = qs.get("name", [""])[0].strip()
+            ceo = qs.get("ceo", [""])[0].strip()
+            bizno = qs.get("bizno", [""])[0].strip()
             rows = []
-            if term:
+            if name or ceo or bizno:
                 conn = DetailCache(DATA_DIR / "cache.db").conn
-                nm, bz = norm_name(term), norm_bizno(term)
-                where, params = ["normNm LIKE ?"], [f"%{nm}%"]
-                where.append("REPLACE(prcbdrCeoNm,' ','') LIKE ?")
-                params.append(f"%{term.replace(' ', '')}%")
-                if bz:
+                where, params = [], []
+                if name:
+                    where.append("normNm LIKE ?")
+                    params.append(f"%{norm_name(name)}%")
+                if ceo:
+                    where.append("REPLACE(prcbdrCeoNm,' ','') LIKE ?")
+                    params.append(f"%{ceo.replace(' ', '')}%")
+                if bizno:
                     where.append("normBizno LIKE ?")
-                    params.append(f"%{bz}%")
+                    params.append(f"%{norm_bizno(bizno)}%")
                 cur = conn.execute(
                     "SELECT prcbdrNm, prcbdrCeoNm, prcbdrBizno, COUNT(*) cnt"
-                    f" FROM participants WHERE {' OR '.join(where)}"
+                    f" FROM participants WHERE {' AND '.join(where)}"
                     " GROUP BY normBizno ORDER BY cnt DESC LIMIT 100", params)
                 rows = [{"name": r[0], "ceo": r[1], "bizno": r[2], "count": r[3]}
                         for r in cur.fetchall()]
