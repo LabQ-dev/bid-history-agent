@@ -368,6 +368,12 @@ function render(rows) {
           let cell = esc(c);
           let cls = '';
           if (h === '평가순위' && isWin) cell += '<span class="badge">낙찰</span>';
+          // 순위가 없는 무효 투찰은 사유(비고) 표시: 낙찰하한선 미달, 예가초과 등
+          if (h === '평가순위' && !String(c).trim()) {
+            const rmrk = String(r[ix('비고')] || '').trim();
+            cell = rmrk && rmrk !== '정상'
+              ? `<span style="font-size:11px;color:#c5221f">${esc(rmrk)}</span>` : '-';
+          }
           if (h === '1위업체' && !isWin && c) cls = 'winner';
           if (diffCols.includes(h) && /^-\d/.test(String(c))) cls = 'neg';
           if (diffCols.includes(h) && /^\+\d/.test(String(c))) cls = 'pos';

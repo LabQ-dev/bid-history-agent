@@ -18,6 +18,7 @@ COLUMNS = [
     ("techEvlVal",     "기술점수"),
     ("bidPrceEvlVal",  "가격점수"),
     ("totalEvlAmtVal", "종합점수"),
+    ("rmrk",           "비고"),
     # 1위(낙찰자) 비교 — _winner에서 계산
     ("_winnerNm",      "1위업체"),
     ("_winnerAmt",     "1위투찰금액"),
