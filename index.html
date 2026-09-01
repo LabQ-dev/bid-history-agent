@@ -345,25 +345,35 @@ function render(rows) {
     : '조건에 맞는 입찰참가 이력이 없습니다.';
   tbl.innerHTML = '';
   if (!rows.length) return;
-  const header = rows[0], rankIdx = header.indexOf('평가순위'),
-        nameIdx = header.indexOf('공고명'),
-        noIdx = header.indexOf('공고번호'),
-        winnerIdx = header.indexOf('1위업체'),
-        diffIdxs = [header.indexOf('금액차(1위대비)'), header.indexOf('점수차(1위대비)')];
-  tbl.innerHTML = '<tr>' + header.map(h => `<th>${esc(h)}</th>`).join('') + '</tr>' +
-    rows.slice(1).map(r => {
-      const isWin = String(r[rankIdx]) === '1';
+  const header = rows[0];
+  const ix = name => header.indexOf(name);   // 백엔드 컬럼 위치
+  // 화면 표시 순서: 번호 · 개찰일시 · 공고명(아래에 구분+공고번호) · 수요기관 · 이후 기존 순서
+  const restCols = ['참가업체수', '평가순위', '업체명', '투찰금액', '투찰률(%)',
+                    '기술점수', '가격점수', '종합점수', '1위업체', '1위투찰금액',
+                    '1위종합점수', '금액차(1위대비)', '점수차(1위대비)'];
+  const diffCols = ['금액차(1위대비)', '점수차(1위대비)'];
+  tbl.innerHTML = '<tr><th>번호</th><th>개찰일시</th><th>공고명</th><th>수요기관</th>' +
+    restCols.map(h => `<th>${esc(h)}</th>`).join('') + '</tr>' +
+    rows.slice(1).map((r, rowNo) => {
+      const isWin = String(r[ix('평가순위')]) === '1';
+      const clsfc = r[ix('분류')];
+      const nameCell =
+        `<a class="bidLink" onclick="openBid('${esc(r[ix('공고번호')])}', this)"
+           title="클릭하면 개찰 순위표가 열립니다">${esc(r[ix('공고명')])}</a>` +
+        `<div style="font-size:11px;color:#8a94a3">(${esc(r[ix('업무구분')])} ${esc(r[ix('공고번호')])}` +
+        `${clsfc ? ' 분류' + esc(clsfc) : ''})</div>`;
       return `<tr class="${isWin ? 'win' : ''}">` +
-        r.map((c, i) => {
+        `<td>${rowNo + 1}</td><td>${esc(r[ix('개찰일시')])}</td>` +
+        `<td class="name">${nameCell}</td><td>${esc(r[ix('수요기관')])}</td>` +
+        restCols.map(h => {
+          const c = r[ix(h)];
           let cell = esc(c);
-          let cls = i === nameIdx ? 'name' : '';
-          if (i === nameIdx)
-            cell = `<a class="bidLink" onclick="openBid('${esc(r[noIdx])}', this)" title="클릭하면 개찰 순위표가 열립니다">${cell}</a>`;
-          if (i === rankIdx && isWin) cell += '<span class="badge">낙찰</span>';
-          if (i === winnerIdx && !isWin && c) cls += ' winner';
-          if (diffIdxs.includes(i) && /^-\d/.test(String(c))) cls += ' neg';
-          if (diffIdxs.includes(i) && /^\+\d/.test(String(c))) cls += ' pos';
-          return `<td class="${cls.trim()}">${cell}</td>`;
+          let cls = '';
+          if (h === '평가순위' && isWin) cell += '<span class="badge">낙찰</span>';
+          if (h === '1위업체' && !isWin && c) cls = 'winner';
+          if (diffCols.includes(h) && /^-\d/.test(String(c))) cls = 'neg';
+          if (diffCols.includes(h) && /^\+\d/.test(String(c))) cls = 'pos';
+          return `<td class="${cls}">${cell}</td>`;
         }).join('') + '</tr>';
     }).join('');
   if (n) document.getElementById('btnDown').style.display = 'inline-block';
