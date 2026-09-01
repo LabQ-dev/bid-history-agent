@@ -39,8 +39,8 @@
   }
   .grid3 {
     display: grid;
-    grid-template-columns: 1.4fr 1fr 0.8fr;
-    column-gap: 28px;
+    grid-template-columns: auto 1.3fr 1fr 0.8fr;
+    column-gap: 20px;
   }
   @media (max-width: 700px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
   input[readonly] { background: #f8f9fa; cursor: pointer; }
@@ -175,15 +175,14 @@
 
   <form id="searchForm" onsubmit="startSearch(event)">
     <div class="grid3">
+      <button type="button" id="btnPicker" onclick="openPicker()"
+        style="align-self:stretch;margin-bottom:14px;padding:10px 20px;border:1px solid #1a73e8;
+        border-radius:8px;background:#fff;color:#1a73e8;font-size:14px;font-weight:700;
+        cursor:pointer">업체 검색</button>
       <div class="field">
         <label class="title">회사명 <span class="req">*</span></label>
         <div class="hint">[업체 검색]에서 회사를 선택하면 채워집니다.</div>
-        <div style="display:flex;gap:8px">
-          <button type="button" id="btnPicker" onclick="openPicker()"
-            style="flex:none;padding:0 14px;border:1px solid #1a73e8;border-radius:8px;
-            background:#fff;color:#1a73e8;font-size:13px;font-weight:700;cursor:pointer">업체 검색</button>
-          <input type="text" id="company" placeholder="업체 검색으로 선택" readonly onclick="openPicker()">
-        </div>
+        <input type="text" id="company" placeholder="업체 검색으로 선택" readonly onclick="openPicker()">
       </div>
       <div class="field">
         <label class="title">사업자등록번호</label>
