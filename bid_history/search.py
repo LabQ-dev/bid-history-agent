@@ -84,12 +84,10 @@ class Query:
         대표자명은 주어진 경우 추가로 만족해야 함(AND).
         """
         ok_corp = True
-        if self.company or self.bizno:
-            ok_corp = False
-            if self.bizno and norm_bizno(self.bizno) == norm_bizno(row.get("prcbdrBizno")):
-                ok_corp = True
-            if self.company and norm_name(self.company) in norm_name(row.get("prcbdrNm")):
-                ok_corp = True
+        if self.bizno:
+            ok_corp = norm_bizno(self.bizno) == norm_bizno(row.get("prcbdrBizno"))
+        elif self.company:
+            ok_corp = norm_name(self.company) in norm_name(row.get("prcbdrNm"))
         ok_ceo = True
         if self.ceo:
             ok_ceo = self.ceo.replace(" ", "") in str(row.get("prcbdrCeoNm") or "").replace(" ", "")
@@ -233,18 +231,14 @@ class DetailCache:
     def db_search(self, q: Query) -> list:
         """정규화 테이블에서 SQL로 참가 이력 검색 (즉시)."""
         where, params = self._range_where(q)
-        corp = []
+        # 사업자번호가 있으면 그것만으로 매칭 (이름이 비슷한 타사 혼입 방지),
+        # 없을 때만 회사명 부분일치
         if q.bizno:
-            corp.append("p.normBizno = ?")
-            params_corp = [norm_bizno(q.bizno)]
-        else:
-            params_corp = []
-        if q.company:
-            corp.append("p.normNm LIKE ?")
-            params_corp.append(f"%{norm_name(q.company)}%")
-        if corp:
-            where += f" AND ({' OR '.join(corp)})"
-            params += params_corp
+            where += " AND p.normBizno = ?"
+            params.append(norm_bizno(q.bizno))
+        elif q.company:
+            where += " AND p.normNm LIKE ?"
+            params.append(f"%{norm_name(q.company)}%")
         if q.ceo:
             where += " AND REPLACE(p.prcbdrCeoNm, ' ', '') LIKE ?"
             params.append(f"%{q.ceo.replace(' ', '')}%")

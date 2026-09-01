@@ -149,6 +149,28 @@ class Handler(BaseHTTPRequestHandler):
                         return 9999
                 rows.sort(key=rank)
             self._json({"found": bool(rows), "no": no, "rows": rows})
+        elif path == "/api/companies":
+            # 업체 검색 팝업: 회사명/대표자/사업자번호 중 아무거나로 DB에서 기업 찾기
+            from urllib.parse import parse_qs
+            from bid_history.search import norm_name, norm_bizno
+            term = parse_qs(urlparse(self.path).query).get("q", [""])[0].strip()
+            rows = []
+            if term:
+                conn = DetailCache(DATA_DIR / "cache.db").conn
+                nm, bz = norm_name(term), norm_bizno(term)
+                where, params = ["normNm LIKE ?"], [f"%{nm}%"]
+                where.append("REPLACE(prcbdrCeoNm,' ','') LIKE ?")
+                params.append(f"%{term.replace(' ', '')}%")
+                if bz:
+                    where.append("normBizno LIKE ?")
+                    params.append(f"%{bz}%")
+                cur = conn.execute(
+                    "SELECT prcbdrNm, prcbdrCeoNm, prcbdrBizno, COUNT(*) cnt"
+                    f" FROM participants WHERE {' OR '.join(where)}"
+                    " GROUP BY normBizno ORDER BY cnt DESC LIMIT 100", params)
+                rows = [{"name": r[0], "ceo": r[1], "bizno": r[2], "count": r[3]}
+                        for r in cur.fetchall()]
+            self._json({"rows": rows})
         elif path == "/api/status":
             with job_lock:
                 rows = report.to_rows(job["results"]) if job["state"] == "done" else []

@@ -166,8 +166,13 @@
     <div class="grid2">
       <div class="field">
         <label class="title">회사명 <span class="req">*</span></label>
-        <div class="hint">(주)·주식회사·공백 무시. 사업자등록번호와 둘 중 하나만 입력해도 됩니다.</div>
-        <input type="text" id="company" placeholder="주식회사 랩큐">
+        <div class="hint">(주)·주식회사·공백 무시. 사업자등록번호를 입력하면 그 번호 기준으로 정확히 검색됩니다.</div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="company" placeholder="주식회사 랩큐">
+          <button type="button" id="btnPicker" onclick="openPicker()"
+            style="flex:none;padding:0 14px;border:1px solid #1a73e8;border-radius:8px;
+            background:#fff;color:#1a73e8;font-size:13px;font-weight:700;cursor:pointer">업체 검색</button>
+        </div>
       </div>
       <div class="field">
         <label class="title">사업자등록번호</label>
@@ -223,6 +228,25 @@
       cursor:pointer;display:none">검색 중지</button>
   </div>
   <div id="logBox"></div>
+</div>
+
+<div id="pickerBack" onclick="if(event.target===this)closePicker()"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100">
+  <div style="background:#fff;border-radius:12px;max-width:760px;margin:7vh auto 0;
+              padding:22px 26px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25)">
+    <button onclick="closePicker()" style="float:right;border:0;background:none;
+            font-size:20px;cursor:pointer;color:#888">✕</button>
+    <h3 style="font-size:16px;margin-bottom:2px">업체 검색</h3>
+    <div class="sub" style="font-size:12px;color:#888;margin-bottom:12px">
+      회사명, 대표자명, 사업자등록번호 중 아무거나 입력하세요. DB에 수집된 참가 기록에서 찾습니다.</div>
+    <form onsubmit="event.preventDefault();searchCompanies()" style="display:flex;gap:8px;padding:0">
+      <input type="text" id="pickerQ" placeholder="예: 스노우 / 홍길동 / 123-45-67890" autocomplete="off">
+      <button type="submit" style="flex:none;padding:9px 20px;border:0;border-radius:8px;
+        background:#1a73e8;color:#fff;font-weight:700;cursor:pointer">검색</button>
+    </form>
+    <div id="pickerInfo" style="font-size:13px;color:#556;margin:12px 0 6px"></div>
+    <div class="tableBox" style="max-height:46vh"><table id="pickerTbl"></table></div>
+  </div>
 </div>
 
 <div id="modalBack" onclick="if(event.target===this)closeModal()">
@@ -382,6 +406,49 @@ function openBid(no, linkEl) {
   }).catch(() => showErr('개찰 순위표를 불러오지 못했습니다.'));
 }
 function closeModal() { document.getElementById('modalBack').style.display = 'none'; }
+
+// ── 업체 검색 팝업 ──────────────────────────────
+function openPicker() {
+  document.getElementById('pickerBack').style.display = 'block';
+  const q = document.getElementById('pickerQ');
+  q.value = v('company') || v('bizno') || v('ceo');
+  q.focus();
+  if (q.value) searchCompanies();
+}
+function closePicker() { document.getElementById('pickerBack').style.display = 'none'; }
+
+function searchCompanies() {
+  const term = document.getElementById('pickerQ').value.trim();
+  if (!term) return;
+  document.getElementById('pickerInfo').textContent = '검색 중...';
+  fetch('/api/companies?q=' + encodeURIComponent(term))
+    .then(r => r.json())
+    .then(d => {
+      const tbl = document.getElementById('pickerTbl');
+      document.getElementById('pickerInfo').textContent = d.rows.length
+        ? `총 ${d.rows.length}건${d.rows.length === 100 ? ' (상위 100건만 표시 — 검색어를 더 구체적으로)' : ''}`
+        : '일치하는 업체가 없습니다. 아직 수집되지 않은 기간에만 참가했을 수 있어요.';
+      tbl.innerHTML = !d.rows.length ? '' :
+        '<tr><th>업체명</th><th>대표자</th><th>사업자번호</th><th>참가</th><th></th></tr>' +
+        d.rows.map(r =>
+          `<tr><td class="name">${esc(r.name)}</td><td>${esc(r.ceo)}</td>` +
+          `<td>${esc(r.bizno)}</td><td>${esc(r.count)}건</td>` +
+          `<td><button type="button" onclick='pickCompany(${JSON.stringify(r.name)}, ${JSON.stringify(r.bizno)})'
+            style="padding:4px 14px;border:1px solid #ccc;border-radius:6px;background:#f8f9fa;
+            cursor:pointer;font-size:12px">선택</button></td></tr>`).join('');
+    })
+    .catch(() => { document.getElementById('pickerInfo').textContent = '검색 서버에 연결할 수 없습니다.'; });
+}
+
+function pickCompany(name, bizno) {
+  document.getElementById('company').value = name;
+  document.getElementById('bizno').value = bizno;
+  document.getElementById('ceo').value = '';
+  closePicker();
+  // 기간이 채워져 있으면 바로 검색 실행
+  if (v('bgn') && v('end')) document.getElementById('searchForm').requestSubmit();
+  else showErr('조회 기간을 선택하면 검색이 시작됩니다.');
+}
 
 // 검색 중지 — API 수집을 멈추고 그때까지 DB에 있는 범위로 결과 표시
 function stopSearch() {
