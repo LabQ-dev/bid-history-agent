@@ -234,14 +234,17 @@ class DetailCache:
         # 사업자번호가 있으면 그것만으로 매칭 (이름이 비슷한 타사 혼입 방지),
         # 없을 때만 회사명 부분일치
         if q.bizno:
+            # 사업자번호 = 회사의 고유 식별자 — 이것만으로 매칭
+            # (대표자명 필터는 걸지 않음: 대표가 바뀐 과거 이력이 누락되지 않도록)
             where += " AND p.normBizno = ?"
             params.append(norm_bizno(q.bizno))
-        elif q.company:
-            where += " AND p.normNm LIKE ?"
-            params.append(f"%{norm_name(q.company)}%")
-        if q.ceo:
-            where += " AND REPLACE(p.prcbdrCeoNm, ' ', '') LIKE ?"
-            params.append(f"%{q.ceo.replace(' ', '')}%")
+        else:
+            if q.company:
+                where += " AND p.normNm LIKE ?"
+                params.append(f"%{norm_name(q.company)}%")
+            if q.ceo:
+                where += " AND REPLACE(p.prcbdrCeoNm, ' ', '') LIKE ?"
+                params.append(f"%{q.ceo.replace(' ', '')}%")
 
         cur = self.conn.execute(
             f"SELECT p.key, {','.join('p.' + f for f in P_FIELDS)},"
