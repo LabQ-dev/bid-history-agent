@@ -162,18 +162,21 @@ class Handler(BaseHTTPRequestHandler):
                 conn = DetailCache(DATA_DIR / "cache.db").conn
                 where, params = [], []
                 if name:
-                    where.append("normNm LIKE ?")
+                    where.append("c.normNm LIKE ?")
                     params.append(f"%{norm_name(name)}%")
                 if ceo:
-                    where.append("REPLACE(prcbdrCeoNm,' ','') LIKE ?")
+                    where.append("REPLACE(c.prcbdrCeoNm,' ','') LIKE ?")
                     params.append(f"%{ceo.replace(' ', '')}%")
                 if bizno:
-                    where.append("normBizno LIKE ?")
+                    where.append("c.normBizno LIKE ?")
                     params.append(f"%{norm_bizno(bizno)}%")
+                # 회사 목록(12만 행)에서 찾고, 참가건수는 인덱스로 집계 — 즉시 응답
                 cur = conn.execute(
-                    "SELECT prcbdrNm, prcbdrCeoNm, prcbdrBizno, COUNT(*) cnt"
-                    f" FROM participants WHERE {' AND '.join(where)}"
-                    " GROUP BY normBizno ORDER BY cnt DESC LIMIT 100", params)
+                    "SELECT c.prcbdrNm, c.prcbdrCeoNm, c.normBizno,"
+                    "  (SELECT COUNT(*) FROM participants p"
+                    "    WHERE p.normBizno = c.normBizno) cnt"
+                    f" FROM companies c WHERE {' AND '.join(where)}"
+                    " ORDER BY cnt DESC LIMIT 100", params)
                 rows = [{"name": r[0], "ceo": r[1], "bizno": r[2], "count": r[3]}
                         for r in cur.fetchall()]
             self._json({"rows": rows})

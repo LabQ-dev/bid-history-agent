@@ -112,7 +112,12 @@ class DetailCache:
         c.execute("CREATE TABLE IF NOT EXISTS fetched (key TEXT PRIMARY KEY)")
         c.execute("CREATE TABLE IF NOT EXISTS swept ("
                   " bizType TEXT, day TEXT, PRIMARY KEY (bizType, day))")
+        # 업체 검색용 회사 목록 (참가 기록에서 고유 회사만 — 검색 속도용)
+        c.execute("CREATE TABLE IF NOT EXISTS companies ("
+                  " normBizno TEXT PRIMARY KEY, prcbdrNm TEXT,"
+                  " prcbdrCeoNm TEXT, normNm TEXT)")
         self._migrate_json_table()
+        self._seed_companies()
         c.execute("CREATE TABLE IF NOT EXISTS participants ("
                   " key TEXT NOT NULL,"
                   + ",".join(f" {f} TEXT" for f in P_FIELDS) + ","
@@ -147,10 +152,28 @@ class DetailCache:
         logger.info("마이그레이션 완료 — 공고 %d건, 참가업체 %d행", n_bids, n_rows)
 
     def _insert_participant(self, key: str, r: dict):
+        nm, bz = norm_name(r.get("prcbdrNm")), norm_bizno(r.get("prcbdrBizno"))
         self.conn.execute(
             f"INSERT INTO participants VALUES (?{',?' * (len(P_FIELDS) + 2)})",
-            [key] + [str(r.get(f, "") or "") for f in P_FIELDS]
-            + [norm_name(r.get("prcbdrNm")), norm_bizno(r.get("prcbdrBizno"))])
+            [key] + [str(r.get(f, "") or "") for f in P_FIELDS] + [nm, bz])
+        if bz:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO companies VALUES (?,?,?,?)",
+                (bz, str(r.get("prcbdrNm", "") or ""),
+                 str(r.get("prcbdrCeoNm", "") or ""), nm))
+
+    def _seed_companies(self):
+        """기존 참가 기록에서 회사 목록 최초 구축 (비어 있을 때 1회)."""
+        n = self.conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+        if n:
+            return
+        self.conn.execute(
+            "INSERT OR IGNORE INTO companies"
+            " SELECT normBizno, MAX(prcbdrNm), MAX(prcbdrCeoNm), MAX(normNm)"
+            " FROM participants WHERE normBizno != '' GROUP BY normBizno")
+        self.conn.commit()
+        logger.info("업체 목록 구축: %d개 회사",
+                    self.conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0])
 
     # ── 적재 ─────────────────────────────────────────
 
