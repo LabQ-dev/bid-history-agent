@@ -109,7 +109,11 @@ def main():
                    default=int(os.environ.get("COLLECT_MAX_CALLS", "8000")),
                    help="상세조회 최대 호출수 (기본 8000, 일일한도 보호)")
     p.add_argument("--daemon", action="store_true",
-                   help="매일 지정 시각에 어제치 자동 수집 (도커용)")
+                   help="매일 지정 시각에 최근 N일치 자동 수집 (도커용)")
+    p.add_argument("--lookback", type=int,
+                   default=int(os.environ.get("COLLECT_LOOKBACK_DAYS", "7")),
+                   help="--daemon이 매일 재확인할 최근 일수 (기본 7 — 조달청이 "
+                        "뒤늦게 등록하는 개찰결과를 따라잡기 위함)")
     p.add_argument("--coverage", action="store_true",
                    help="수집 범위 요약(개찰일별 공고수/명단 보유수) 출력 후 종료")
     p.add_argument("--hour", type=int,
@@ -136,15 +140,19 @@ def main():
         run_once(args)
         return
 
-    logger.info("데몬 모드 — 매일 %02d:00에 어제치 개찰결과를 수집합니다.", args.hour)
+    logger.info("데몬 모드 — 매일 %02d:00에 최근 %d일치 개찰결과를 수집합니다.",
+                args.hour, args.lookback)
     while True:
         run_at = next_run_time(args.hour)
         wait = (run_at - datetime.now()).total_seconds()
         logger.info("다음 수집: %s (%.0f분 후)", run_at, wait / 60)
         time.sleep(max(wait, 1))
         try:
-            args.date = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
-            args.bgn = args.end = ""
+            # 어제까지 최근 N일을 재확인 — 이미 받은 공고는 건너뛰므로
+            # 실제 비용은 신규(뒤늦게 등록된) 건들뿐
+            args.date = ""
+            args.bgn = (datetime.now() - timedelta(days=args.lookback)).strftime("%Y%m%d")
+            args.end = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
             run_once(args)
         except Exception as e:
             logger.error("수집 실패: %s — 내일 재시도", e)
