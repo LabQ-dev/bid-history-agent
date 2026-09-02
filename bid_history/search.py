@@ -117,7 +117,6 @@ class DetailCache:
                   " normBizno TEXT PRIMARY KEY, prcbdrNm TEXT,"
                   " prcbdrCeoNm TEXT, normNm TEXT)")
         self._migrate_json_table()
-        self._seed_companies()
         c.execute("CREATE TABLE IF NOT EXISTS participants ("
                   " key TEXT NOT NULL,"
                   + ",".join(f" {f} TEXT" for f in P_FIELDS) + ","
@@ -125,6 +124,7 @@ class DetailCache:
         c.execute("CREATE INDEX IF NOT EXISTS idx_p_key ON participants(key)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_p_normNm ON participants(normNm)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_p_bizno ON participants(normBizno)")
+        self._seed_companies()   # participants 생성 이후에 실행해야 함
         c.commit()
 
     # ── 구버전(JSON 1테이블) 마이그레이션 ─────────────
