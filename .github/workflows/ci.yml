@@ -10,19 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: 의존성 설치
         run: pip install requests openpyxl pytest
-
-      - name: 문법 검사 (컴파일)
+      - name: 문법 검사
         run: python -m py_compile main.py web.py collector.py bid_history/*.py
-
       - name: 오프라인 테스트
         run: pytest tests/ -v
-
       - name: 도커 이미지 빌드 검증
         run: docker build -t bid-history-agent:ci .
