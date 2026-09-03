@@ -325,16 +325,51 @@ def sweep_bids(client: NaraClient, q: Query,
             cache.conn.commit()
 
 
+def _fmt_day(d: str) -> str:
+    return f"{int(d[4:6])}/{int(d[6:])}"
+
+
+def missing_summary(cache: DetailCache, q: Query) -> str:
+    """요청 기간 중 아직 DB에 없는 구간을 사람이 읽을 문장으로. 없으면 빈 문자열."""
+    days = set()
+    for ds in cache.missing_days(q).values():          # 목록조차 안 받은 날
+        days.update(ds)
+    for b in cache.unfetched_bids(q):                  # 목록은 있으나 명단 없는 공고
+        d = str(b.get("opengDt", ""))[:10].replace("-", "")
+        if len(d) == 8:
+            days.add(d)
+    if not days:
+        return ""
+    ranges = _chunks(sorted(days))
+    return ", ".join(f"{_fmt_day(a)}~{_fmt_day(b)}" if a != b else _fmt_day(a)
+                     for a, b in ranges)
+
+
 def search(client: NaraClient, q: Query, cache: DetailCache,
            max_detail_calls: Optional[int] = None,
            progress_every: int = 200,
-           should_stop=None) -> list[dict]:
+           should_stop=None,
+           db_only: bool = False) -> list[dict]:
     """검색 실행: 부족한 부분만 API로 채우고, 매칭은 DB에서 SQL로.
 
     should_stop: 호출 시 True를 반환하면 API 수집을 멈추고
     그때까지 DB에 있는 범위로 결과를 반환한다.
+    db_only=True: API를 전혀 부르지 않고 DB에 있는 범위로만 검색하며,
+    빠진 구간이 있으면 안내 로그를 남긴다 (공유용 화면 모드).
     결과: 매칭된 참가 레코드 목록 (공고정보 + 업체·순위·점수 + _winner)
     """
+    if db_only:
+        gaps = missing_summary(cache, q)
+        if gaps:
+            logger.warning("⚠️ 아직 데이터가 수집되지 않은 구간이 있어 이번 결과에서 "
+                           "빠졌습니다: %s — 데이터 세팅이 마무리되면 다시 조회해주세요.",
+                           gaps)
+        results = cache.db_search(q)
+        results.sort(key=lambda r: (str(r.get("opengDt", "")),
+                                    int(r.get("opengRank") or 999)))
+        logger.info("DB 검색 완료 — 매칭 %d건 (API 호출 없음)", len(results))
+        return results
+
     stopped = False
 
     def _stop() -> bool:

@@ -76,8 +76,11 @@ def run_search(params: dict):
         # 일일한도 보호: 검색 1회당 상세조회 500회 고정 (화면에서 설정 불가)
         max_calls = 500
         cache = DetailCache(DATA_DIR / "cache.db")
+        # 웹 화면은 DB 전용 모드: API를 호출하지 않고, 미수집 구간은 안내만.
+        # (수집은 collector 데몬/백필 담당 — 사용자가 API 한도를 소모하지 않도록)
+        db_only = os.environ.get("WEB_DB_ONLY", "1") != "0"
         results = search(client, q, cache, max_detail_calls=max_calls,
-                         should_stop=stop_event.is_set)
+                         should_stop=stop_event.is_set, db_only=db_only)
         with job_lock:
             job["results"] = results
             job["state"] = "done"
