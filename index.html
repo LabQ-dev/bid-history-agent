@@ -374,7 +374,13 @@ function render(rows) {
             cell = rmrk && rmrk !== '정상'
               ? `<span style="font-size:11px;color:#c5221f">${esc(rmrk)}</span>` : '-';
           }
-          if (h === '1위업체' && !isWin && c) cls = 'winner';
+          if (h === '1위업체' && !isWin && c) {
+            cls = 'winner';
+            // 1위업체 클릭 → 그 회사로 즉시 재검색 (기간·업무구분은 유지)
+            cell = `<a class="bidLink" style="color:#137333;font-weight:700"
+              title="클릭하면 이 회사의 참가 이력을 검색합니다"
+              onclick='searchCompanyByWinner(${JSON.stringify(String(c))}, ${JSON.stringify(String(r[ix('1위사업자번호')] || ''))})'>${esc(c)}</a>`;
+          }
           if (diffCols.includes(h) && /^-\d/.test(String(c))) cls = 'neg';
           if (diffCols.includes(h) && /^\+\d/.test(String(c))) cls = 'pos';
           return `<td class="${cls}">${cell}</td>`;
@@ -471,6 +477,15 @@ function searchCompanies() {
             cursor:pointer;font-size:12px">선택</button></td></tr>`).join('');
     })
     .catch(() => { document.getElementById('pickerInfo').textContent = '검색 서버에 연결할 수 없습니다.'; });
+}
+
+// 결과 표의 1위업체 클릭 → 그 회사로 폼 채우고 즉시 재검색
+function searchCompanyByWinner(name, bizno) {
+  document.getElementById('company').value = name;
+  document.getElementById('bizno').value = bizno;
+  document.getElementById('ceo').value = '';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  document.getElementById('searchForm').requestSubmit();
 }
 
 function pickCompany(name, bizno, ceo) {
