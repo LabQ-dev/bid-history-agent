@@ -21,6 +21,7 @@ COLUMNS = [
     ("rmrk",           "비고"),
     # 1위(낙찰자) 비교 — _winner에서 계산
     ("_winnerNm",      "1위업체"),
+    ("_winnerBizno",   "1위사업자번호"),
     ("_winnerAmt",     "1위투찰금액"),
     ("_winnerTotal",   "1위종합점수"),
     ("_amtDiff",       "금액차(1위대비)"),
@@ -50,6 +51,7 @@ def enrich(r: dict) -> dict:
     clsfc = parts[2] if len(parts) > 2 else ""
     out["_clsfc"] = clsfc if clsfc not in ("", "0", "1") else ""
     out["_winnerNm"] = w.get("prcbdrNm", "")
+    out["_winnerBizno"] = w.get("prcbdrBizno", "")
     out["_winnerAmt"] = _fmt_amt(w.get("bidprcAmt"))
     out["_winnerTotal"] = w.get("totalEvlAmtVal", "")
     out["bidprcAmt"] = _fmt_amt(r.get("bidprcAmt"))
