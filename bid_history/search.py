@@ -212,10 +212,16 @@ class DetailCache:
 
     def get_rows(self, key_or_no: str) -> list:
         """key 또는 공고번호로 참가업체 행 조회 (dict 재조립)."""
-        like = key_or_no if "|" in key_or_no else key_or_no + "|%"
-        cur = self.conn.execute(
-            f"SELECT {','.join(P_FIELDS)} FROM participants WHERE key LIKE ?",
-            (like,))
+        if "|" in key_or_no:
+            # 완전한 key는 = 비교여야 idx_p_key를 탄다 (LIKE는 풀스캔)
+            cur = self.conn.execute(
+                f"SELECT {','.join(P_FIELDS)} FROM participants WHERE key=?",
+                (key_or_no,))
+        else:
+            cur = self.conn.execute(
+                f"SELECT {','.join(P_FIELDS)} FROM participants"
+                " WHERE key>=? AND key<?",
+                (key_or_no + "|", key_or_no + "}"))
         return [dict(zip(P_FIELDS, row)) for row in cur.fetchall()]
 
     def missing_days(self, q: Query) -> dict:
