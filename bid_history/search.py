@@ -301,6 +301,12 @@ class DetailCache:
             " GROUP BY d ORDER BY d").fetchall()
 
 
+def _sort_newest_first(results: list):
+    """개찰일시 최신순 정렬 (같은 공고 안에서는 순위 오름차순)."""
+    results.sort(key=lambda r: int(r.get("opengRank") or 999))
+    results.sort(key=lambda r: str(r.get("opengDt", "")), reverse=True)
+
+
 def sweep_bids(client: NaraClient, q: Query,
                cache: Optional[DetailCache] = None) -> Iterable[dict]:
     """기간 내 개찰완료 공고 목록을 생성하고 bids 테이블에 적재.
@@ -371,8 +377,7 @@ def search(client: NaraClient, q: Query, cache: DetailCache,
                            "빠졌습니다: %s — 데이터 세팅이 마무리되면 다시 조회해주세요.",
                            gaps)
         results = cache.db_search(q)
-        results.sort(key=lambda r: (str(r.get("opengDt", "")),
-                                    int(r.get("opengRank") or 999)))
+        _sort_newest_first(results)
         logger.info("DB 검색 완료 — 매칭 %d건 (API 호출 없음)", len(results))
         return results
 
@@ -437,7 +442,6 @@ def search(client: NaraClient, q: Query, cache: DetailCache,
 
     # 3) SQL 매칭
     results = cache.db_search(q)
-    results.sort(key=lambda r: (str(r.get("opengDt", "")),
-                                int(r.get("opengRank") or 999)))
+    _sort_newest_first(results)
     logger.info("DB 검색 완료 — 매칭 %d건 (API 상세호출 %d회)", len(results), detail_calls)
     return results
