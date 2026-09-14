@@ -31,11 +31,34 @@ logger = logging.getLogger("bid_history.collector")
 DATA_DIR = Path(os.environ.get("G2B_DATA_DIR", Path(__file__).parent))
 
 
+# 참가업체 명단을 이만큼 모아 한 번에 커밋한다. HDD에서는 커밋(fsync) 1회가
+# 0.2~0.5초라 건건이 커밋하면 디스크 대기가 수집 속도를 지배한다.
+COMMIT_BATCH = 100
+
+
+def _sweep_with_retry(client: NaraClient, q: Query, cache: DetailCache,
+                      tries: int = 3, pause: int = 60) -> list:
+    """공고 목록 스윕 — 일시적 네트워크 장애면 잠시 쉬었다 다시 시도.
+
+    목록 조회는 건별 수집과 달리 한 번 실패하면 수집 전체가 중단되므로,
+    사무실 회선이 잠깐 끊기는 정도는 여기서 흡수한다.
+    """
+    for i in range(1, tries + 1):
+        try:
+            return list(sweep_bids(client, q, cache))
+        except NaraApiError as e:
+            if "트래픽 초과" in str(e) or i == tries:
+                raise
+            logger.warning("목록 조회 실패(%d/%d) — %d초 후 재시도: %s",
+                           i, tries, pause, e)
+            time.sleep(pause)
+
+
 def collect(client: NaraClient, cache: DetailCache, bgn: str, end: str,
             biz_types: list, max_calls: int) -> dict:
     """기간 내 개찰완료 공고의 참가업체 데이터를 캐시에 적재."""
     q = Query(bgn=bgn, end=end, biz_types=biz_types)
-    bids = list(sweep_bids(client, q, cache))   # 공고 메타데이터도 bids 테이블에 적재
+    bids = _sweep_with_retry(client, q, cache)   # 공고 메타데이터도 bids 테이블에 적재
     stats = {"bids": len(bids), "fetched": 0, "skipped": 0, "calls": 0}
     logger.info("개찰완료 공고 %d건 (%s~%s) — 수집 시작", len(bids), bgn, end)
 
@@ -64,11 +87,14 @@ def collect(client: NaraClient, cache: DetailCache, bgn: str, end: str,
             continue
         stats["calls"] += 1
         stats["fetched"] += 1
-        cache.put(key, rows)
+        cache.put(key, rows, commit=False)
+        if stats["fetched"] % COMMIT_BATCH == 0:
+            cache.conn.commit()
         if idx % 200 == 0:
             logger.info("진행 %d/%d (신규 %d, 캐시존재 %d)",
                         idx, len(bids), stats["fetched"], stats["skipped"])
 
+    cache.conn.commit()        # 마지막 배치 (중단된 경우 포함)
     logger.info("수집 완료 — 공고 %(bids)d건 중 신규 %(fetched)d건 적재, "
                 "기존 %(skipped)d건, API 호출 %(calls)d회(목록조회 제외)", stats)
     return stats
