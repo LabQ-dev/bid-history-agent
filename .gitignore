@@ -8,3 +8,5 @@ data/
 서비스화면_*.png
 .DS_Store
 cache.db-*
+backup/
+*.db

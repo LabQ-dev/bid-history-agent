@@ -102,6 +102,11 @@ class DetailCache:
         self.conn = sqlite3.connect(path, timeout=30)
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA busy_timeout=30000")
+        # HDD에서 커밋 1회당 fsync가 0.2~0.5초 걸린다. WAL+NORMAL은 손상 위험 없이
+        # (전원 차단 시 최근 트랜잭션만 유실) fsync를 줄인다.
+        self.conn.execute("PRAGMA synchronous=NORMAL")
+        # 디스크 임시 정렬파일을 쓰면 대용량 인덱스 생성 시 DB가 손상된다 (실측).
+        self.conn.execute("PRAGMA temp_store=MEMORY")
         c = self.conn
         c.execute("CREATE TABLE IF NOT EXISTS bids ("
                   " key TEXT PRIMARY KEY, bidNtceNo TEXT NOT NULL, bizType TEXT,"
@@ -187,13 +192,18 @@ class DetailCache:
         if commit:
             self.conn.commit()
 
-    def put(self, key: str, rows: list):
-        """공고 하나의 참가업체 명단 저장 (재수집 시 교체)."""
+    def put(self, key: str, rows: list, commit: bool = True):
+        """공고 하나의 참가업체 명단 저장 (재수집 시 교체).
+
+        commit=False로 여러 건을 묶어 저장하면 fsync 횟수가 줄어 훨씬 빠르다.
+        묶은 뒤에는 반드시 호출부에서 commit()해야 한다.
+        """
         self.conn.execute("DELETE FROM participants WHERE key=?", (key,))
         for r in rows:
             self._insert_participant(key, r)
         self.conn.execute("INSERT OR REPLACE INTO fetched VALUES (?)", (key,))
-        self.conn.commit()
+        if commit:
+            self.conn.commit()
 
     def mark_swept(self, biz_type: str, days: Iterable[str]):
         self.conn.executemany(

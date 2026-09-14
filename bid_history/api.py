@@ -46,7 +46,7 @@ class NaraClient:
     """페이징·재시도·호출간격을 처리하는 얇은 클라이언트."""
 
     def __init__(self, service_key: str, interval: float = 0.05,
-                 timeout: int = 30, max_retries: int = 3):
+                 timeout: int = 30, max_retries: int = 6):
         self.service_key = service_key
         self.interval = interval          # 초당 최대 30 TPS 제한 대응
         self.timeout = timeout
@@ -98,7 +98,7 @@ class NaraClient:
 
             except (requests.RequestException, ValueError) as e:
                 last_err = e
-                wait = 2 ** attempt
+                wait = min(2 ** attempt, 60)     # 회선 순단이 몇 분 이어져도 버티게
                 # 로그에 인증키가 노출되지 않도록 마스킹
                 safe = str(e).replace(self.service_key, "***KEY***")
                 logger.warning("%s 호출 실패(%d/%d): %s → %ds 후 재시도",
